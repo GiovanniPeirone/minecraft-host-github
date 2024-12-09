@@ -1,0 +1,22 @@
+name: Deploy Minecraft Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Java
+        run: sudo apt-get install openjdk-17-jre-headless
+
+      - name: Start Minecraft Server
+        run: |
+          java -Xmx1024M -Xms1024M -jar minecraft_server.1.21.4.jar nogui
