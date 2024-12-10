@@ -11,23 +11,65 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Paso para hacer checkout del código
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      # Paso para instalar Java 17
-      - name: Install Java
-        run: sudo apt-get update && sudo apt-get install -y openjdk-17-jre-headless
-
-      # Verificar si server.jar existe
-      - name: Verify if server.jar exists
+        uses: actions/checkout@v3
+        
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+          
+      - name: Verify server files
         run: |
-          if [ ! -f server.jar ]; then
-            echo "server.jar not found!"
+          # Verificar server.jar
+          if [ ! -f Test/server.jar ]; then
+            echo "❌ server.jar no encontrado en Test/server.jar"
             exit 1
           fi
+          
+          # Verificar permisos
+          if [ ! -x Test/server.jar ]; then
+            echo "📝 Ajustando permisos de server.jar"
+            chmod +x Test/server.jar
+          fi
+          
+          # Verificar eula.txt
+          if [ ! -f Test/eula.txt ]; then
+            echo "eula=true" > Test/eula.txt
+          fi
 
-      # Paso para ejecutar el servidor de Minecraft con 4GB de RAM
       - name: Start Minecraft Server
+        working-directory: Test
         run: |
-          java -Xmx4096M -Xms4096M -jar server.jar nogui
+          # Verificar espacio en disco
+          FREE_SPACE=$(df -k . | awk 'NR==2 {print $4}')
+          MIN_SPACE=10485760 # 10GB en KB
+          
+          if [ $FREE_SPACE -lt $MIN_SPACE ]; then
+            echo "❌ Espacio insuficiente en disco"
+            exit 1
+          fi
+          
+          # Iniciar servidor con flags optimizados
+          java -Xmx4096M -Xms4096M \
+            -XX:+UseG1GC \
+            -XX:+ParallelRefProcEnabled \
+            -XX:MaxGCPauseMillis=200 \
+            -XX:+UnlockExperimentalVMOptions \
+            -XX:+DisableExplicitGC \
+            -XX:+AlwaysPreTouch \
+            -XX:G1NewSizePercent=30 \
+            -XX:G1MaxNewSizePercent=40 \
+            -XX:G1HeapRegionSize=8M \
+            -XX:G1ReservePercent=20 \
+            -XX:G1HeapWastePercent=5 \
+            -XX:G1MixedGCCountTarget=4 \
+            -XX:InitiatingHeapOccupancyPercent=15 \
+            -XX:G1MixedGCLiveThresholdPercent=90 \
+            -XX:G1RSetUpdatingPauseTimePercent=5 \
+            -XX:SurvivorRatio=32 \
+            -XX:+PerfDisableSharedMem \
+            -XX:MaxTenuringThreshold=1 \
+            -jar server.jar nogui
